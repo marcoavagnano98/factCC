@@ -9,7 +9,7 @@ export CKPT_PATH= # absolute path to model checkpoint
 export TASK_NAME=factcc_annotated
 export MODEL_NAME=bert-base-uncased
 
-python3 $CODE_PATH/run.py \
+python3 /content/factCC/modeling//run.py \
   --task_name $TASK_NAME \
   --do_predict \
   --eval_all_checkpoints \
@@ -19,5 +19,5 @@ python3 $CODE_PATH/run.py \
   --per_gpu_train_batch_size 12 \
   --model_type bert \
   --model_name_or_path $MODEL_NAME \
-  --data_dir $DATA_PATH \
-  --output_dir $CKPT_PATH
+  --data_dir /content \
+  --output_dir /content/factcc-checkpoint/

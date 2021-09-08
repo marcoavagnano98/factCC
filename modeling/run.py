@@ -269,7 +269,7 @@ def evaluate(args, model, tokenizer, prefix=""):
 
     return results
 
-def predict(args,model,tokenizer,prefix):
+def predict(args,model,tokenizer,prefix=""):
      # Loop to handle MNLI double evaluation (matched, mis-matched)
     eval_task_names = (args.task_name,)
     eval_outputs_dirs = (args.output_dir,)
@@ -306,7 +306,7 @@ def predict(args,model,tokenizer,prefix):
                if preds is None:
                      preds = logits.detach().cpu().numpy()
     preds=np.argmax(preds,axis=1)
-    logger.info("Preds = %.6f", preds)
+    print("\n\nPreds : ", preds)
     return preds
 
 
@@ -567,8 +567,8 @@ def main():
             model = model_class.from_pretrained(checkpoint)
             model.to(args.device)
             result = predict(args, model, tokenizer, prefix=global_step)
-            result = dict((k + '_{}'.format(global_step), v) for k, v in result.items())
-            results.update(result)
+          #  result = dict((k + '_{}'.format(global_step), v) for k, v in result.items())
+          # results.update(result)
 
     return results
 
