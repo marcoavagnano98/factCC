@@ -269,6 +269,48 @@ def evaluate(args, model, tokenizer, prefix=""):
 
     return results
 
+def predict(args,model,tokenizer,prefix):
+     # Loop to handle MNLI double evaluation (matched, mis-matched)
+    eval_task_names = (args.task_name,)
+    eval_outputs_dirs = (args.output_dir,)
+
+    results = {}
+    cnt = 0
+    for eval_task, eval_output_dir in zip(eval_task_names, eval_outputs_dirs):
+        eval_dataset = load_and_cache_examples(args, eval_task, tokenizer, evaluate=True)
+
+        if not os.path.exists(eval_output_dir) and args.local_rank in [-1, 0]:
+            os.makedirs(eval_output_dir)
+
+        args.eval_batch_size = args.per_gpu_eval_batch_size * max(1, args.n_gpu)
+        # Note that DistributedSampler samples randomly
+        eval_sampler = SequentialSampler(eval_dataset) if args.local_rank == -1 else DistributedSampler(eval_dataset)
+        eval_dataloader = DataLoader(eval_dataset, sampler=eval_sampler, batch_size=args.eval_batch_size)
+
+        # Eval!
+        logger.info("***** Running evaluation {} *****".format(prefix))
+        logger.info("  Num examples = %d", len(eval_dataset))
+        logger.info("  Batch size = %d", args.eval_batch_size)
+
+        #eval_loss = 0.0
+        #nb_eval_steps = 0
+        preds = None
+        #out_label_ids = None
+
+        for batch in tqdm(eval_dataloader, desc="Evaluating"):
+               with torch.no_grad():
+                    inputs = make_model_input(args, batch)
+                    outputs = model(**inputs)
+                    logits_ix = 1 if args.model_type == "bert" else 7
+                    logits = outputs[logits_ix]
+               if preds is None:
+                     preds = logits.detach().cpu().numpy()
+    preds=np.argmax(preds,axis=1)
+    logger.info("Preds = %.6f", preds)
+    return preds
+
+
+
 
 def load_and_cache_examples(args, task, tokenizer, evaluate=False):
     if args.local_rank not in [-1, 0]:
@@ -358,6 +400,8 @@ def main():
                         help="Whether to run training.")
     parser.add_argument("--do_eval", action='store_true',
                         help="Whether to run eval on the dev set.")
+    parser.add_argument("--do_predict", action='store_true',
+                        help="Predict if the dev set claims are factual.")
     parser.add_argument("--evaluate_during_training", action='store_true',
                         help="Run evaluation during training at each logging step.")
     parser.add_argument("--do_lower_case", action='store_true',
@@ -509,6 +553,20 @@ def main():
             model = model_class.from_pretrained(checkpoint)
             model.to(args.device)
             result = evaluate(args, model, tokenizer, prefix=global_step)
+            result = dict((k + '_{}'.format(global_step), v) for k, v in result.items())
+            results.update(result)
+
+    if args.do_predict and args.local_rank in [-1, 0]:
+        checkpoints = [args.output_dir]
+        if args.eval_all_checkpoints:
+            checkpoints = list(os.path.dirname(c) for c in sorted(glob.glob(args.output_dir + '/**/' + WEIGHTS_NAME, recursive=True)))
+            logging.getLogger("pytorch_transformers.modeling_utils").setLevel(logging.WARN)  # Reduce logging
+        logger.info("Evaluate the following checkpoints: %s", checkpoints)
+        for checkpoint in checkpoints:
+            global_step = checkpoint.split('-')[-1] if len(checkpoints) > 1 else ""
+            model = model_class.from_pretrained(checkpoint)
+            model.to(args.device)
+            result = predict(args, model, tokenizer, prefix=global_step)
             result = dict((k + '_{}'.format(global_step), v) for k, v in result.items())
             results.update(result)
 
